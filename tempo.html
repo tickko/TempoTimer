@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tempo — Swing Timing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --fairway:#152C22;
+    --turf:#254636;
+    --turf-light:#345B47;
+    --cream:#F2EDE1;
+    --cream-dim:#C9C4B6;
+    --flag:#C1443C;
+    --gold:#C9A227;
+    --slate:#7A8A82;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--fairway); color:var(--cream); font-family:'Inter',sans-serif; height:100%; overscroll-behavior:none;}
+  body{
+    background:
+      radial-gradient(circle at 50% -10%, var(--turf) 0%, var(--fairway) 55%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 2px, transparent 2px, transparent 40px);
+    min-height:100vh;
+    padding-top: calc(var(--safe-top) + 18px);
+    padding-bottom: calc(var(--safe-bottom) + 24px);
+  }
+  .wrap{max-width:480px; margin:0 auto; padding:0 20px;}
+
+  header{text-align:center; margin-bottom:22px;}
+  .eyebrow{font-size:11px; letter-spacing:0.28em; text-transform:uppercase; color:var(--gold); font-weight:600;}
+  h1{font-family:'Oswald',sans-serif; font-weight:600; font-size:30px; letter-spacing:0.02em; margin:4px 0 0; text-transform:uppercase;}
+
+  .tabs{display:flex; gap:2px; background:var(--turf); border-radius:10px; padding:3px; margin-bottom:16px;}
+  .tab{flex:1; padding:10px 6px; text-align:center; border-radius:8px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--cream-dim); cursor:pointer; transition:background .2s, color .2s; border:none; background:none;}
+  .tab.active{background:var(--cream); color:var(--fairway); font-weight:600;}
+
+  /* Sub tabs for Detect / Train within a mode */
+  .subtabs{display:flex; gap:16px; margin-bottom:14px; border-bottom:1px solid rgba(242,237,225,0.1); padding:0 2px;}
+  .subtab{padding:8px 2px 10px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.05em; text-transform:uppercase; color:var(--cream-dim); background:none; border:none; cursor:pointer; position:relative;}
+  .subtab.active{color:var(--cream);}
+  .subtab.active::after{content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--gold);}
+
+  .card{background:var(--turf); border:1px solid rgba(242,237,225,0.08); border-radius:16px; padding:20px; margin-bottom:14px;}
+  .card-title{font-family:'Oswald',sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--cream-dim); margin-bottom:14px;}
+
+  /* Dial / signature element */
+  .dial-wrap{display:flex; flex-direction:column; align-items:center; padding:8px 0 4px;}
+  svg.dial{width:240px; height:150px; overflow:visible;}
+  .dial-arc-bg{fill:none; stroke:rgba(242,237,225,0.12); stroke-width:14; stroke-linecap:round;}
+  .dial-arc-back{fill:none; stroke:var(--flag); stroke-width:14; stroke-linecap:round; opacity:0.9;}
+  .dial-arc-down{fill:none; stroke:var(--gold); stroke-width:14; stroke-linecap:round; opacity:0.9;}
+  .dial-needle{stroke:var(--cream); stroke-width:3; stroke-linecap:round; transition:transform .15s ease-out;}
+  .dial-hub{fill:var(--cream);}
+
+  .ratio-readout{text-align:center; margin-top:-6px;}
+  .ratio-num{font-family:'Oswald',sans-serif; font-size:56px; font-weight:700; line-height:1;}
+  .ratio-label{font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--cream-dim); margin-top:2px;}
+  .verdict{margin-top:10px; font-family:'Oswald',sans-serif; font-size:15px; letter-spacing:0.04em; text-transform:uppercase; padding:6px 14px; border-radius:20px; display:inline-block;}
+  .verdict.good{background:rgba(201,162,39,0.18); color:var(--gold); border:1px solid rgba(201,162,39,0.4);}
+  .verdict.fast{background:rgba(193,68,60,0.18); color:var(--flag); border:1px solid rgba(193,68,60,0.4);}
+  .verdict.slow{background:rgba(193,68,60,0.18); color:var(--flag); border:1px solid rgba(193,68,60,0.4);}
+  .verdict.idle{background:rgba(122,138,130,0.15); color:var(--slate); border:1px solid rgba(122,138,130,0.3);}
+
+  .split-times{display:flex; justify-content:center; gap:24px; margin-top:14px; font-size:12px; color:var(--cream-dim);}
+  .split-times b{color:var(--cream); font-family:'Oswald',sans-serif; font-size:15px; display:block; margin-top:2px;}
+
+  .status-row{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--cream-dim); justify-content:center; margin-top:14px;}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--slate);}
+  .dot.live{background:var(--gold); box-shadow:0 0 8px var(--gold);}
+
+  /* Camera preview */
+  .camera-wrap{position:relative; width:100%; aspect-ratio:3/4; max-height:280px; border-radius:12px; overflow:hidden; background:#000; margin-bottom:14px; border:1px solid rgba(242,237,225,0.12);}
+  .camera-wrap video{width:100%; height:100%; object-fit:cover; transform:scaleX(-1);}
+  .camera-phase{position:absolute; left:0; right:0; bottom:0; padding:8px 0; text-align:center; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.08em; text-transform:uppercase; color:var(--cream); background:linear-gradient(to top, rgba(0,0,0,0.65), transparent);}
+
+  .motion-meter-row{display:flex; align-items:center; gap:8px; margin-top:10px;}
+  .motion-meter{flex:1; height:6px; border-radius:3px; background:rgba(242,237,225,0.12); overflow:hidden;}
+  .motion-meter-fill{height:100%; width:0%; background:var(--gold); transition:width 0.08s linear;}
+  .motion-meter-val{font-family:'Oswald',sans-serif; font-size:12px; color:var(--cream-dim); min-width:24px; text-align:right;}
+
+  button.primary{width:100%; background:var(--cream); color:var(--fairway); border:none; border-radius:12px; padding:16px; font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; margin-top:4px;}
+  button.primary:active{opacity:0.85;}
+  button.primary:disabled{opacity:0.4;}
+  button.secondary{width:100%; background:transparent; color:var(--cream); border:1px solid rgba(242,237,225,0.25); border-radius:12px; padding:13px; font-family:'Inter',sans-serif; font-size:14px; font-weight:500; cursor:pointer; margin-top:8px;}
+  button.danger-link{width:100%; background:none; border:none; color:var(--flag); font-family:'Inter',sans-serif; font-size:12.5px; font-weight:500; cursor:pointer; padding:6px; text-align:center; text-decoration:underline; text-underline-offset:2px;}
+  button.clear-link{background:none; border:none; color:var(--flag); font-family:'Inter',sans-serif; font-size:12px; font-weight:500; cursor:pointer; padding:2px; text-decoration:underline; text-underline-offset:2px; flex-shrink:0;}
+
+  /* Preset chips (full swing) */
+  .preset-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;}
+  .preset-btn{background:var(--fairway); border:1px solid rgba(242,237,225,0.15); color:var(--cream); border-radius:10px; padding:12px 6px; cursor:pointer; text-align:center;}
+  .preset-btn .p-ratio{font-family:'Oswald',sans-serif; font-size:17px; font-weight:600;}
+  .preset-btn .p-label{font-size:10.5px; color:var(--cream-dim); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
+  .preset-btn.active{background:var(--gold); border-color:var(--gold);}
+  .preset-btn.active .p-ratio, .preset-btn.active .p-label{color:var(--fairway);}
+
+  /* Countdown selector */
+  .chip-row{display:flex; gap:8px; margin-bottom:16px;}
+  .chip-btn{flex:1; background:var(--fairway); border:1px solid rgba(242,237,225,0.15); color:var(--cream-dim); border-radius:20px; padding:9px 4px; font-size:13px; text-align:center; cursor:pointer;}
+  .chip-btn.active{background:var(--cream); color:var(--fairway); font-weight:600; border-color:var(--cream);}
+
+  /* Settings */
+  .settings-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .settings-label{font-size:13px; color:var(--cream-dim);}
+  .settings-val{font-family:'Oswald',sans-serif; font-size:15px; color:var(--gold);}
+  input[type=range]{width:100%; margin:6px 0 16px; -webkit-appearance:none; height:4px; border-radius:2px; background:rgba(242,237,225,0.2); outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--gold); cursor:pointer; border:3px solid var(--fairway);}
+  .toggle-row{display:flex; justify-content:space-between; align-items:center;}
+  .switch{position:relative; width:46px; height:26px; background:rgba(242,237,225,0.15); border-radius:13px; cursor:pointer; transition:background .2s; flex-shrink:0;}
+  .switch.on{background:var(--gold);}
+  .switch::after{content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:var(--cream); transition:transform .2s;}
+  .switch.on::after{transform:translateX(20px);}
+
+  /* Trainer playback visual */
+  .trainer-stage{text-align:center; padding:10px 0 6px;}
+  .trainer-big{font-family:'Oswald',sans-serif; font-size:48px; font-weight:700; color:var(--gold); height:58px; line-height:58px; display:flex; align-items:center; justify-content:center;}
+  .trainer-sub{font-size:13px; color:var(--cream-dim); text-transform:uppercase; letter-spacing:0.08em; margin-top:2px; height:34px; line-height:17px; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden;}
+  .trainer-dots{display:flex; justify-content:center; gap:10px; margin-top:16px;}
+  .t-dot{width:11px; height:11px; border-radius:50%; background:rgba(242,237,225,0.15); transition:background .15s, transform .15s;}
+  .t-dot.hit{background:var(--gold); transform:scale(1.3);}
+
+  /* History */
+  .history-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .history-empty{font-size:13px; color:var(--slate); text-align:center; padding:14px 0;}
+  .hist-item{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(242,237,225,0.07); font-size:13px;}
+  .hist-item:last-child{border-bottom:none;}
+  .hist-ratio{font-family:'Oswald',sans-serif; font-size:16px; color:var(--cream);}
+  .hist-mode{color:var(--cream-dim); font-size:11px; text-transform:uppercase; letter-spacing:0.05em;}
+  .hist-tag{font-size:11px; padding:3px 9px; border-radius:12px; text-transform:uppercase; letter-spacing:0.04em; font-weight:600;}
+  .hist-tag.good{background:rgba(201,162,39,0.18); color:var(--gold);}
+  .hist-tag.off{background:rgba(193,68,60,0.18); color:var(--flag);}
+
+  .note{font-size:11.5px; color:var(--slate); text-align:center; margin-top:16px; line-height:1.5; padding:0 8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">On-Course Timing</div>
+    <h1>Tempo</h1>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-mode="full">Full Swing</button>
+    <button class="tab" data-mode="short">Putt / Chip</button>
+  </div>
+
+  <div class="subtabs">
+    <button class="subtab active" data-sub="train">Audio Trainer</button>
+    <button class="subtab" data-sub="detect">Auto-Detect</button>
+  </div>
+
+  <!-- ===================== DETECT PANEL ===================== -->
+  <div id="panelDetect" style="display:none;">
+    <div class="card">
+      <div class="camera-wrap" id="cameraWrap" style="display:none;">
+        <video id="camVideo" autoplay muted playsinline></video>
+        <div class="camera-phase" id="camPhaseLabel">Armed</div>
+      </div>
+      <canvas id="procCanvas" width="64" height="48" style="display:none;"></canvas>
+
+      <div class="dial-wrap">
+        <svg class="dial" viewBox="0 0 240 150">
+          <path class="dial-arc-bg" d="M 20 140 A 100 100 0 0 1 220 140"/>
+          <path id="arcBack" class="dial-arc-back" d="M 20 140 A 100 100 0 0 1 120 40"/>
+          <path id="arcDown" class="dial-arc-down" d="M 120 40 A 100 100 0 0 1 220 140"/>
+          <line id="needle" class="dial-needle" x1="120" y1="140" x2="120" y2="55"/>
+          <circle class="dial-hub" cx="120" cy="140" r="7"/>
+        </svg>
+        <div class="ratio-readout">
+          <div class="ratio-num" id="ratioNum">—</div>
+          <div class="ratio-label">back : through ratio</div>
+          <div class="verdict idle" id="verdict">Ready</div>
+        </div>
+        <div class="split-times">
+          <div>Backswing<b id="backMs">— ms</b></div>
+          <div>Downswing<b id="downMs">— ms</b></div>
+        </div>
+      </div>
+
+      <div class="status-row">
+        <div class="dot" id="statusDot"></div>
+        <span id="statusText">Camera not started</span>
+      </div>
+
+      <div class="motion-meter-row" id="motionMeterRow" style="display:none;">
+        <span class="settings-label" style="font-size:11px;">Motion signal</span>
+        <div class="motion-meter"><div class="motion-meter-fill" id="motionMeterFill"></div></div>
+        <span class="motion-meter-val" id="motionMeterVal">0</span>
+      </div>
+
+      <button class="primary" id="startBtn">Enable Camera</button>
+      <button class="secondary" id="resetBtn" style="display:none;">Reset</button>
+    </div>
+
+
+    <div class="card">
+      <div class="settings-row">
+        <span class="settings-label">Target ratio</span>
+        <span class="settings-val" id="targetVal">3.0 : 1</span>
+      </div>
+      <input type="range" id="targetSlider" min="10" max="35" value="30" step="1">
+
+      <div class="settings-row">
+        <span class="settings-label">Tolerance (±)</span>
+        <span class="settings-val" id="toleranceVal">0.3</span>
+      </div>
+      <input type="range" id="toleranceSlider" min="1" max="8" value="3" step="1">
+
+      <div class="settings-row" style="margin-top:2px;">
+        <div class="toggle-row" style="width:100%;">
+          <span class="settings-label">Sound + haptic cue</span>
+          <div class="switch on" id="soundToggle"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TRAINER PANEL ===================== -->
+  <div id="panelTrain">
+    <div class="card">
+      <div class="trainer-stage">
+        <div class="trainer-big" id="trainBig"></div>
+        <div class="trainer-sub" id="trainSub">Tap play to start</div>
+        <div class="trainer-dots">
+          <div class="t-dot" id="dot1"></div>
+          <div class="t-dot" id="dot2"></div>
+          <div class="t-dot" id="dot3"></div>
+        </div>
+      </div>
+      <div class="settings-row" style="margin-top:2px;">
+        <div class="toggle-row" style="width:100%;">
+          <span class="settings-label">Repeat</span>
+          <div class="switch on" id="repeatToggle"></div>
+        </div>
+      </div>
+      <button class="primary" id="playBtn" style="margin-top:14px;">Play Sequence</button>
+    </div>
+
+    <!-- Full swing presets -->
+    <div class="card" id="fullPresetCard">
+      <div class="card-title">Tempo Preset (frame-based, all exactly 3:1)</div>
+      <div class="preset-grid">
+        <div class="preset-btn active" data-back="900" data-down="300">
+          <div class="p-ratio">27 : 9</div>
+          <div class="p-label">Slow · Els / Couples</div>
+        </div>
+        <div class="preset-btn" data-back="800" data-down="267">
+          <div class="p-ratio">24 : 8</div>
+          <div class="p-label">Middle · Amateur default</div>
+        </div>
+        <div class="preset-btn" data-back="700" data-down="233">
+          <div class="p-ratio">21 : 7</div>
+          <div class="p-label">Quick transition</div>
+        </div>
+        <div class="preset-btn" data-back="600" data-down="200">
+          <div class="p-ratio">18 : 6</div>
+          <div class="p-label">Fast · Nick Price</div>
+        </div>
+      </div>
+      <div class="card-title" style="margin-bottom:10px;">Countdown (also used as the gap between reps when Repeat is on)</div>
+      <div class="chip-row">
+        <div class="chip-btn" data-cd="0">None</div>
+        <div class="chip-btn active" data-cd="3">3s</div>
+        <div class="chip-btn" data-cd="5">5s</div>
+        <div class="chip-btn" data-cd="10">10s</div>
+      </div>
+    </div>
+
+    <!-- Putt/chip metronome settings -->
+    <div class="card" id="shortPresetCard" style="display:none;">
+      <div class="card-title">Metronome Speed</div>
+      <div class="settings-row">
+        <span class="settings-label">Tempo</span>
+        <span class="settings-val" id="bpmVal">76 BPM</span>
+      </div>
+      <input type="range" id="bpmSlider" min="60" max="100" value="76" step="1">
+
+      <div class="settings-row">
+        <span class="settings-label">Back : Through ratio</span>
+        <span class="settings-val" id="shortRatioVal">2.0 : 1</span>
+      </div>
+      <input type="range" id="shortRatioSlider" min="10" max="25" value="20" step="1">
+
+      <div class="card-title" style="margin-bottom:10px; margin-top:4px;">Countdown (also used as the gap between reps when Repeat is on)</div>
+      <div class="chip-row">
+        <div class="chip-btn" data-cd="0">None</div>
+        <div class="chip-btn active" data-cd="3">3s</div>
+        <div class="chip-btn" data-cd="5">5s</div>
+        <div class="chip-btn" data-cd="10">10s</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="history-head">
+      <div class="card-title" style="margin-bottom:0;">Session Log</div>
+      <button class="clear-link" id="clearHistBtn">Clear history</button>
+    </div>
+    <div id="historyList"><div class="history-empty">No swings recorded yet</div></div>
+  </div>
+
+  <div class="note" id="footNote">
+    Auto-Detect uses your front camera to watch for motion and time real swings — prop the phone up facing you, frame yourself in the shot, then swing. Audio Trainer plays a three-tone rhythm (address → top → impact) for you to swing along with, no camera needed. Camera access requires HTTPS (won't work opening the file directly — host it first).
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ============================================================
+  // Shared state
+  // ============================================================
+  let mode = 'full';       // 'full' | 'short'
+  let subview = 'train';  // 'detect' | 'train'
+  let history = [];
+
+  const $ = id => document.getElementById(id);
+
+  // ---------- Audio ----------
+  let audioCtx;
+  function ensureAudio(){
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function tone(freq, durMs, atMs, vol){
+    const ctx = ensureAudio();
+    const startAt = ctx.currentTime + (atMs/1000);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0, startAt);
+    gain.gain.linearRampToValueAtTime(vol || 0.22, startAt + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, startAt + durMs/1000);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(startAt); osc.stop(startAt + durMs/1000 + 0.02);
+  }
+  function beepNow(freq, durMs){
+    tone(freq, durMs, 0, 0.2);
+    if(navigator.vibrate) navigator.vibrate(durMs > 150 ? [40,30,40] : 30);
+  }
+
+  // ---------- Preference persistence ----------
+  // Uses localStorage (not sessionStorage) so settings survive full app closes, not just
+  // refreshes. Note: this only works once the file is hosted (http/https) — the in-chat
+  // Claude.ai preview sandbox blocks localStorage, so it'll silently no-op there via the
+  // try/catch below and just behave like a fresh session each time.
+  const PREFS_KEY = 'golfTempoPrefs_v1';
+  function savePrefs(){
+    try{
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        mode, subview, targetRatio, tolerance, soundOn,
+        presetBack, presetDown, countdownSec, bpm, shortRatio, repeatOn
+      }));
+    }catch(e){ /* storage unavailable — app still works, just won't persist */ }
+  }
+  function loadPrefs(){
+    try{
+      const raw = localStorage.getItem(PREFS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+
+  // ---------- Screen wake lock ----------
+  // Keeps the display from auto-locking while a sensor session or trainer loop is active.
+  // Supported on iOS 16.4+ Safari and modern Chrome/Android; silently no-ops elsewhere.
+  // Two independent "wanters" (sensor session, trainer loop) share one OS-level lock —
+  // only release when neither wants it, so stopping one doesn't drop the other's lock.
+  let wakeLock = null;
+  const wakeLockWanters = { sensor: false, trainer: false };
+
+  async function requestWakeLock(source){
+    wakeLockWanters[source] = true;
+    if(!('wakeLock' in navigator) || wakeLock) return;
+    try{
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', ()=>{ wakeLock = null; });
+    }catch(e){ /* denied or unsupported — app still works, screen just may sleep */ }
+  }
+  function releaseWakeLock(source){
+    wakeLockWanters[source] = false;
+    if(wakeLockWanters.sensor || wakeLockWanters.trainer) return; // still needed elsewhere
+    if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+  }
+  // Re-acquire if the tab regains visibility mid-session (iOS releases the lock when backgrounded)
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible' && !wakeLock){
+      if(wakeLockWanters.sensor) requestWakeLock('sensor');
+      else if(wakeLockWanters.trainer) requestWakeLock('trainer');
+    }
+  });
+
+  // ============================================================
+  // Top-level tabs (Full Swing / Putt-Chip)
+  // ============================================================
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      mode = tab.dataset.mode;
+      targetRatio = mode === 'full' ? 3.0 : 1.0;
+      targetSlider.value = Math.round(targetRatio*10);
+      updateTargetLabel();
+      resetSwingState();
+      $('fullPresetCard').style.display = mode === 'full' ? 'block' : 'none';
+      $('shortPresetCard').style.display = mode === 'short' ? 'block' : 'none';
+      resetTrainerVisual();
+      savePrefs();
+    });
+  });
+
+  document.querySelectorAll('.subtab').forEach(st=>{
+    st.addEventListener('click', ()=>{
+      document.querySelectorAll('.subtab').forEach(s=>s.classList.remove('active'));
+      st.classList.add('active');
+      subview = st.dataset.sub;
+      $('panelDetect').style.display = subview === 'detect' ? 'block' : 'none';
+      $('panelTrain').style.display = subview === 'train' ? 'block' : 'none';
+      stopTrainer();
+      savePrefs();
+    });
+  });
+
+  // ============================================================
+  // DETECT PANEL (front camera, frame-differencing motion)
+  // ============================================================
+  let targetRatio = 3.0;
+  let tolerance = 0.3;
+  let soundOn = true;
+  let cameraActive = false;
+  let phase = 'idle';
+  let tBackStart = 0, tTop = 0, tImpact = 0;
+  let camStream = null;
+  let camRafId = null;
+
+  const ratioNum = $('ratioNum'), verdictEl = $('verdict'), backMs = $('backMs'), downMs = $('downMs');
+  const needle = $('needle');
+  const statusDot = $('statusDot'), statusText = $('statusText');
+  const startBtn = $('startBtn'), resetBtn = $('resetBtn');
+  const targetSlider = $('targetSlider'), targetVal = $('targetVal');
+  const toleranceSlider = $('toleranceSlider'), toleranceVal = $('toleranceVal');
+  const soundToggle = $('soundToggle');
+  const historyList = $('historyList');
+  const cameraWrap = $('cameraWrap'), camVideo = $('camVideo'), camPhaseLabel = $('camPhaseLabel');
+  const procCanvas = $('procCanvas'), motionMeterRow = $('motionMeterRow'), motionMeterFill = $('motionMeterFill'), motionMeterVal = $('motionMeterVal');
+  const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+
+  // Motion-energy thresholds (mean grayscale delta per pixel, 0-255 scale) — approximate,
+  // tuned blind without real footage. Expect to retune startThresh/quietThresh against
+  // what the live "Motion signal" meter shows once tested against real swings/setups.
+  const PROFILES = {
+    full:  { startThresh: 8,  quietThresh: 3,   quietMs: 400, minBackMs: 150, minDownMs: 60, cooldownMs: 900 },
+    short: { startThresh: 3,  quietThresh: 1.2, quietMs: 400, minBackMs: 120, minDownMs: 60, cooldownMs: 700 }
+  };
+  let baselineQuietSince = 0, smoothedMotion = 0, peakAfterStart = 0, prevFrameData = null;
+
+  function updateTargetLabel(){
+    targetRatio = targetSlider.value/10;
+    targetVal.textContent = targetRatio.toFixed(1) + ' : 1';
+    savePrefs();
+  }
+  targetSlider.addEventListener('input', updateTargetLabel);
+
+  function updateToleranceLabel(){
+    tolerance = toleranceSlider.value/10;
+    toleranceVal.textContent = '±' + tolerance.toFixed(1);
+    savePrefs();
+  }
+  toleranceSlider.addEventListener('input', updateToleranceLabel);
+
+  soundToggle.addEventListener('click', ()=>{
+    soundOn = !soundOn;
+    soundToggle.classList.toggle('on', soundOn);
+    savePrefs();
+  });
+
+  function resetSwingState(){
+    phase = 'idle';
+    tBackStart = tTop = tImpact = 0;
+    peakAfterStart = 0;
+    ratioNum.textContent = '—';
+    backMs.textContent = '— ms';
+    downMs.textContent = '— ms';
+    setVerdict('idle', 'Ready');
+    needle.setAttribute('transform', 'rotate(0 120 140)');
+    camPhaseLabel.textContent = 'Armed';
+  }
+
+  function setVerdict(cls, text){
+    verdictEl.className = 'verdict ' + cls;
+    verdictEl.textContent = text;
+  }
+
+  function finalizeSwing(backDurMs, downDurMs, sourceMode){
+    const ratio = downDurMs > 0 ? backDurMs/downDurMs : 0;
+    backMs.textContent = Math.round(backDurMs) + ' ms';
+    downMs.textContent = Math.round(downDurMs) + ' ms';
+    ratioNum.textContent = ratio.toFixed(2);
+
+    const diff = ratio - targetRatio;
+    const onTempo = Math.abs(diff) <= tolerance;
+    if(onTempo){ setVerdict('good', '✓ On Tempo'); if(soundOn) beepNow(880, 180); }
+    else if(diff < 0){ setVerdict('fast', '✗ Too Quick'); if(soundOn) beepNow(300, 220); }
+    else { setVerdict('slow', '✗ Too Slow / Long'); if(soundOn) beepNow(500, 220); }
+
+    const clampRatio = Math.max(0.3, Math.min(6, ratio));
+    const angle = Math.max(-85, Math.min(85, (clampRatio - targetRatio) * (30/tolerance) ));
+    needle.setAttribute('transform', `rotate(${angle} 120 140)`);
+
+    history.unshift({ mode: sourceMode || mode, ratio, backDurMs, downDurMs, onTempo, ts: Date.now() });
+    if(history.length > 40) history.pop();
+    renderHistory();
+    phase = 'cooldown';
+    camPhaseLabel.textContent = 'Cooldown';
+    setTimeout(()=>{ if(phase==='cooldown'){ phase='idle'; } }, PROFILES[mode].cooldownMs);
+  }
+
+  function renderHistory(){
+    if(history.length === 0){
+      historyList.innerHTML = '<div class="history-empty">No swings recorded yet</div>';
+      return;
+    }
+    historyList.innerHTML = history.map(h=>{
+      const modeLabel = h.mode === 'full' ? 'Full Swing' : 'Putt / Chip';
+      const tagClass = h.onTempo ? 'good' : 'off';
+      const tagText = h.onTempo ? 'On Tempo' : 'Off';
+      return `<div class="hist-item">
+        <div>
+          <div class="hist-ratio">${h.ratio.toFixed(2)} : 1</div>
+          <div class="hist-mode">${modeLabel} · ${Math.round(h.backDurMs)}ms / ${Math.round(h.downDurMs)}ms</div>
+        </div>
+        <div class="hist-tag ${tagClass}">${tagText}</div>
+      </div>`;
+    }).join('');
+  }
+
+  $('clearHistBtn').addEventListener('click', ()=>{
+    if(history.length === 0) return;
+    history = [];
+    renderHistory();
+  });
+
+  // Grabs a downscaled grayscale frame and returns mean absolute delta vs the previous frame.
+  function computeMotionEnergy(){
+    procCtx.drawImage(camVideo, 0, 0, procCanvas.width, procCanvas.height);
+    const frame = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
+    const data = frame.data;
+    const n = procCanvas.width * procCanvas.height;
+    const gray = new Uint8ClampedArray(n);
+    for(let i=0, p=0; i<n; i++, p+=4){
+      gray[i] = (data[p]*0.299 + data[p+1]*0.587 + data[p+2]*0.114);
+    }
+    let energy = 0;
+    if(prevFrameData){
+      let sum = 0;
+      for(let i=0; i<n; i++) sum += Math.abs(gray[i] - prevFrameData[i]);
+      energy = sum / n;
+    }
+    prevFrameData = gray;
+    return energy;
+  }
+
+  function cameraLoop(){
+    if(!cameraActive) return;
+    camRafId = requestAnimationFrame(cameraLoop);
+    if(camVideo.readyState < 2) return; // not enough data yet
+
+    const raw = computeMotionEnergy();
+    smoothedMotion = smoothedMotion*0.6 + raw*0.4;
+
+    // Live meter (scaled against ~25 as a rough "very active" ceiling for the bar fill)
+    motionMeterFill.style.width = Math.min(100, (smoothedMotion/25)*100) + '%';
+    motionMeterVal.textContent = smoothedMotion.toFixed(1);
+
+    if(subview !== 'detect') return;
+
+    const now = performance.now();
+    const p = PROFILES[mode];
+
+    if(phase === 'idle' || phase === 'cooldown'){
+      if(smoothedMotion < p.quietThresh){
+        if(!baselineQuietSince) baselineQuietSince = now;
+        if(now - baselineQuietSince > p.quietMs && phase !== 'cooldown') phase = 'armed';
+      } else { baselineQuietSince = 0; }
+      return;
+    }
+    if(phase === 'armed'){
+      camPhaseLabel.textContent = 'Armed — step into frame and swing';
+      if(smoothedMotion > p.startThresh){
+        tBackStart = now; phase = 'backswing'; peakAfterStart = smoothedMotion;
+        setVerdict('idle', 'Backswing…');
+        camPhaseLabel.textContent = 'Backswing';
+      }
+      return;
+    }
+    if(phase === 'backswing'){
+      if(smoothedMotion > peakAfterStart) peakAfterStart = smoothedMotion;
+      const elapsed = now - tBackStart;
+      if(elapsed > p.minBackMs && smoothedMotion < peakAfterStart*0.35){
+        tTop = now; phase = 'downswing';
+        setVerdict('idle', 'Downswing…');
+        camPhaseLabel.textContent = 'Downswing';
+      }
+      return;
+    }
+    if(phase === 'downswing'){
+      const elapsed = now - tTop;
+      if(elapsed > p.minDownMs && smoothedMotion > p.startThresh*1.3){
+        tImpact = now;
+        camPhaseLabel.textContent = 'Impact';
+        finalizeSwing(tTop - tBackStart, tImpact - tTop);
+      }
+      return;
+    }
+  }
+
+  async function startCamera(){
+    try{
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 640 } },
+        audio: false
+      });
+      camVideo.srcObject = camStream;
+      await camVideo.play();
+
+      cameraActive = true;
+      prevFrameData = null;
+      smoothedMotion = 0;
+      cameraWrap.style.display = 'block';
+      motionMeterRow.style.display = 'flex';
+      statusDot.classList.add('live');
+      statusText.textContent = 'Camera live — frame yourself, then swing';
+      startBtn.style.display = 'none';
+      resetBtn.style.display = 'block';
+      resetSwingState();
+      requestWakeLock('sensor');
+      camRafId = requestAnimationFrame(cameraLoop);
+    } catch(err){
+      if(err && err.name === 'NotAllowedError'){
+        statusText.textContent = 'Camera access denied — enable it in Settings > Safari, or use Audio Trainer instead';
+      } else if(location.protocol !== 'https:' && location.hostname !== 'localhost'){
+        statusText.textContent = 'Camera requires HTTPS — host this page (e.g. GitHub Pages) rather than opening the file directly';
+      } else {
+        statusText.textContent = 'Could not access camera. Try Audio Trainer instead.';
+      }
+    }
+  }
+
+  function stopCamera(){
+    cameraActive = false;
+    if(camRafId) cancelAnimationFrame(camRafId);
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
+  }
+
+  startBtn.addEventListener('click', startCamera);
+  resetBtn.addEventListener('click', resetSwingState);
+
+  // ============================================================
+  // TRAINER PANEL (audio tempo trainer)
+  // ============================================================
+  let presetBack = 900, presetDown = 300;
+  let countdownSec = 3;
+  let bpm = 76, shortRatio = 2.0;
+  let trainerTimer = null;
+  let trainerPlaying = false;
+  let repeatOn = true;
+
+  const trainBig = $('trainBig'), trainSub = $('trainSub');
+  const playBtn = $('playBtn');
+  const dot1 = $('dot1'), dot2 = $('dot2'), dot3 = $('dot3');
+
+  document.querySelectorAll('.preset-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      presetBack = parseInt(btn.dataset.back);
+      presetDown = parseInt(btn.dataset.down);
+      savePrefs();
+    });
+  });
+
+  document.querySelectorAll('.chip-row').forEach(row=>{
+    row.querySelectorAll('.chip-btn').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        countdownSec = parseInt(chip.dataset.cd);
+        // Keep both countdown chip rows (full-swing card and putt/chip card) in sync
+        document.querySelectorAll('.chip-row').forEach(r=>{
+          r.querySelectorAll('.chip-btn').forEach(c=>{
+            c.classList.toggle('active', parseInt(c.dataset.cd) === countdownSec);
+          });
+        });
+        savePrefs();
+      });
+    });
+  });
+
+  const repeatToggle = $('repeatToggle');
+  repeatToggle.addEventListener('click', ()=>{
+    repeatOn = !repeatOn;
+    repeatToggle.classList.toggle('on', repeatOn);
+    savePrefs();
+  });
+
+  const bpmSlider = $('bpmSlider'), bpmVal = $('bpmVal');
+  bpmSlider.addEventListener('input', ()=>{
+    bpm = parseInt(bpmSlider.value);
+    bpmVal.textContent = bpm + ' BPM';
+    savePrefs();
+  });
+  const shortRatioSlider = $('shortRatioSlider'), shortRatioVal = $('shortRatioVal');
+  shortRatioSlider.addEventListener('input', ()=>{
+    shortRatio = shortRatioSlider.value/10;
+    shortRatioVal.textContent = shortRatio.toFixed(1) + ' : 1';
+    savePrefs();
+  });
+
+  function resetTrainerVisual(){
+    trainBig.textContent = '';
+    trainSub.textContent = 'Tap play to start';
+    [dot1,dot2,dot3].forEach(d=>d.classList.remove('hit'));
+  }
+
+  function stopTrainer(){
+    if(trainerTimer){ clearTimeout(trainerTimer); trainerTimer = null; }
+    trainerPlaying = false;
+    playBtn.disabled = false;
+    playBtn.textContent = 'Play Sequence';
+    resetTrainerVisual();
+    releaseWakeLock('trainer');
+  }
+
+  function computeStrokeTimes(){
+    if(mode === 'full'){
+      return { backMs: presetBack, downMs: presetDown };
+    } else {
+      const totalMs = 60000 / bpm; // one beat interval = full stroke window
+      const backM = totalMs * (shortRatio / (shortRatio + 1));
+      const downM = totalMs - backM;
+      return { backMs: backM, downMs: downM };
+    }
+  }
+
+  playBtn.addEventListener('click', ()=>{
+    if(trainerPlaying){
+      // Acts as Stop while a sequence/loop is running
+      stopTrainer();
+      return;
+    }
+    ensureAudio();
+    requestWakeLock('trainer');
+    trainerPlaying = true;
+    playBtn.textContent = 'Stop';
+
+    const step = (fn, delay)=>{ trainerTimer = setTimeout(fn, delay); };
+
+    function runCountdown(secLeft, onDone){
+      if(!trainerPlaying) return;
+      if(secLeft <= 0){ onDone(); return; }
+      trainBig.textContent = secLeft;
+      trainSub.textContent = 'Get ready…';
+      beepNow(440, 90);
+      step(()=>runCountdown(secLeft-1, onDone), 1000);
+    }
+
+    function runSequence(){
+      if(!trainerPlaying) return;
+      const { backMs: bMs, downMs: dMs } = computeStrokeTimes();
+
+      trainBig.textContent = '';
+      trainSub.textContent = 'Address';
+      dot1.classList.add('hit'); dot2.classList.remove('hit'); dot3.classList.remove('hit');
+      tone(660, 140, 0, 0.22); // address / start tone
+
+      step(()=>{
+        if(!trainerPlaying) return;
+        trainSub.textContent = 'Top';
+        dot1.classList.remove('hit'); dot2.classList.add('hit'); dot3.classList.remove('hit');
+        tone(880, 140, 0, 0.24); // top-of-backswing tone
+      }, bMs);
+
+      step(()=>{
+        if(!trainerPlaying) return;
+        trainSub.textContent = 'Impact';
+        dot1.classList.remove('hit'); dot2.classList.remove('hit'); dot3.classList.add('hit');
+        tone(520, 200, 0, 0.26); // impact tone
+        if(navigator.vibrate) navigator.vibrate(40);
+      }, bMs + dMs);
+
+      step(()=>{
+        if(!trainerPlaying) return;
+        trainSub.textContent = `${(bMs).toFixed(0)}/${(dMs).toFixed(0)}ms · ${(bMs/dMs).toFixed(2)}:1`;
+
+        if(!repeatOn){
+          trainerPlaying = false;
+          playBtn.textContent = 'Play Sequence';
+          releaseWakeLock('trainer');
+          return;
+        }
+        // Loop: countdown again (acts as inter-rep gap) or go straight back-to-back if "None"
+        if(countdownSec > 0){
+          runCountdown(countdownSec, runSequence);
+        } else {
+          runSequence();
+        }
+      }, bMs + dMs + 400);
+    }
+
+    if(countdownSec > 0){
+      runCountdown(countdownSec, runSequence);
+    } else {
+      trainBig.textContent = '';
+      runSequence();
+    }
+  });
+
+  // init
+  updateTargetLabel();
+  updateToleranceLabel();
+
+  // ---------- Restore persisted preferences (if any) ----------
+  (function applyStoredPrefs(){
+    const p = loadPrefs();
+    if(!p) return;
+
+    // Mode tab (Full Swing / Putt-Chip)
+    if(p.mode === 'full' || p.mode === 'short'){
+      mode = p.mode;
+      document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.mode === mode));
+      $('fullPresetCard').style.display = mode === 'full' ? 'block' : 'none';
+      $('shortPresetCard').style.display = mode === 'short' ? 'block' : 'none';
+    }
+
+    // Sub-tab (Audio Trainer / Auto-Detect)
+    if(p.subview === 'train' || p.subview === 'detect'){
+      subview = p.subview;
+      document.querySelectorAll('.subtab').forEach(s=>s.classList.toggle('active', s.dataset.sub === subview));
+      $('panelDetect').style.display = subview === 'detect' ? 'block' : 'none';
+      $('panelTrain').style.display = subview === 'train' ? 'block' : 'none';
+    }
+
+    // Detect panel: target ratio + tolerance + sound
+    if(typeof p.targetRatio === 'number'){
+      targetSlider.value = Math.round(p.targetRatio * 10);
+      updateTargetLabel();
+    }
+    if(typeof p.tolerance === 'number'){
+      toleranceSlider.value = Math.round(p.tolerance * 10);
+      updateToleranceLabel();
+    }
+    if(typeof p.soundOn === 'boolean'){
+      soundOn = p.soundOn;
+      soundToggle.classList.toggle('on', soundOn);
+    }
+
+    // Trainer: full-swing preset
+    if(typeof p.presetBack === 'number' && typeof p.presetDown === 'number'){
+      presetBack = p.presetBack; presetDown = p.presetDown;
+      document.querySelectorAll('.preset-btn').forEach(b=>{
+        b.classList.toggle('active', parseInt(b.dataset.back) === presetBack && parseInt(b.dataset.down) === presetDown);
+      });
+    }
+
+    // Trainer: countdown (shared across both rows)
+    if(typeof p.countdownSec === 'number'){
+      countdownSec = p.countdownSec;
+      document.querySelectorAll('.chip-btn').forEach(c=>{
+        c.classList.toggle('active', parseInt(c.dataset.cd) === countdownSec);
+      });
+    }
+
+    // Trainer: repeat toggle
+    if(typeof p.repeatOn === 'boolean'){
+      repeatOn = p.repeatOn;
+      repeatToggle.classList.toggle('on', repeatOn);
+    }
+
+    // Trainer: putt/chip BPM + ratio
+    if(typeof p.bpm === 'number'){
+      bpm = p.bpm;
+      bpmSlider.value = bpm;
+      bpmVal.textContent = bpm + ' BPM';
+    }
+    if(typeof p.shortRatio === 'number'){
+      shortRatio = p.shortRatio;
+      shortRatioSlider.value = Math.round(shortRatio * 10);
+      shortRatioVal.textContent = shortRatio.toFixed(1) + ' : 1';
+    }
+  })();
+})();
+</script>
+</body>
+</html>
